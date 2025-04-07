@@ -7,7 +7,7 @@ toolchain go1.23.6
 //toolchain go1.22.6
 
 require (
-	github.com/golang/glog v1.2.2
+	github.com/golang/glog v1.2.4
 	github.com/google/uuid v1.6.0
 	github.com/kubeflow/spark-operator v0.0.0-20250205113037-a348b9218fd6
 	github.com/magiconair/properties v1.8.7
