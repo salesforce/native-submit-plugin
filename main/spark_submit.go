@@ -77,7 +77,7 @@ func runAltSparkSubmit(app *v1beta2.SparkApplication, submissionID string, kubeC
 
 	//Update Application CRD Instance with Submission ID
 	app.Status.SubmissionID = submissionID
-
+	serviceLabels := map[string]string{SparkAppNameLabel: app.Name}
 	// Merge driver labels
 	if app.Spec.Driver.Labels != nil {
 		if version, exists := app.Spec.Driver.Labels[Version]; exists {

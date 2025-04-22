@@ -58,6 +58,7 @@ require (
 )
 
 replace (
+	github.com/kubeflow/spark-operator => github.com/gangahiremath/spark-operator v0.0.0-20250205113037-a348b9218fd6
 	k8s.io/api => k8s.io/api v0.29.3
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.29.3
 	k8s.io/apimachinery => k8s.io/apimachinery v0.29.3

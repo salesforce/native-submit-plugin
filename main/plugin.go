@@ -7,9 +7,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type NativeSubmit struct{}
+type AltSparkSubmit struct{}
 
-func (a *NativeSubmit) LaunchSparkApplication(app *v1beta2.SparkApplication, cl client.Client) error {
+func (a *AltSparkSubmit) LaunchSparkApplication(app *v1beta2.SparkApplication, cl client.Client) error {
 	if app == nil {
 		return fmt.Errorf("spark application cannot be nil")
 	}
@@ -17,10 +17,6 @@ func (a *NativeSubmit) LaunchSparkApplication(app *v1beta2.SparkApplication, cl 
 	return runAltSparkSubmitWrapper(app, cl)
 }
 
-func New() interface{} {
-	return &NativeSubmit{}
-}
-
-func main() {
-	fmt.Println("Native Submit Plugin")
+func New() v1beta2.SparkAppLauncher {
+	return &AltSparkSubmit{}
 }

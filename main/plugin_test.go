@@ -65,7 +65,7 @@ func TestNativeSubmit_LaunchSparkApplication(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ns := &NativeSubmit{}
+			ns := &AltSparkSubmit{}
 			cl := fake.NewClientBuilder().Build()
 			err := ns.LaunchSparkApplication(tt.app, cl)
 			if tt.wantErr {
