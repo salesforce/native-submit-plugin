@@ -1,6 +1,7 @@
 package configmap
 
 import (
+	"context"
 	"fmt"
 	"nativesubmit/common"
 	"path"
@@ -17,7 +18,7 @@ import (
 // Function to create Spark Application Configmap
 // Spark Application ConfigMap is pre-requisite for Driver Pod Creation; this configmap is mounted on driver pod
 // Spark Application ConfigMap acts as configuration repository for the Driver, executor pods
-func Create(app *v1beta2.SparkApplication, submissionID string, createdApplicationId string, kubeClient ctrlClient.Client, driverConfigMapName string, serviceName string) error {
+func Create(ctx context.Context, app *v1beta2.SparkApplication, submissionID string, createdApplicationId string, kubeClient ctrlClient.Client, driverConfigMapName string, serviceName string) error {
 	if app == nil {
 		return fmt.Errorf("spark application cannot be nil")
 	}

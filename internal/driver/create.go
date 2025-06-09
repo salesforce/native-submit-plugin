@@ -19,7 +19,7 @@ import (
 )
 
 // Helper func to create Driver Pod of the Spark Application
-func Create(app *v1beta2.SparkApplication, serviceLabels map[string]string, driverConfigMapName string, kubeClient ctrlClient.Client, appSpecVolumeMounts []apiv1.VolumeMount, appSpecVolumes []apiv1.Volume) error {
+func Create(ctx context.Context, app *v1beta2.SparkApplication, serviceLabels map[string]string, driverConfigMapName string, kubeClient ctrlClient.Client, appSpecVolumeMounts []apiv1.VolumeMount, appSpecVolumes []apiv1.Volume) error {
 	if app == nil {
 		return fmt.Errorf("spark application cannot be nil")
 	}
