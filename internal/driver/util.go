@@ -120,8 +120,7 @@ func loadPodFromTemplate(templateFileName string, containerName string, conf map
 	var file apiv1.Pod
 	localFile, err := downloadFile(templateFileName, createTempDir(), conf)
 	if err != nil {
-		fmt.Errorf("Encountered exception while attempting to download the pod template file : %v", err)
-		return file, err
+		return file, fmt.Errorf("encountered exception while attempting to download the pod template file: %v", err)
 	} else {
 		data, err := os.ReadFile(localFile)
 		if err != nil {

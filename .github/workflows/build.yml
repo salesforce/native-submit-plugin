@@ -1,0 +1,173 @@
+name: Build and Test Plugin
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ published ]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ['1.21', '1.22', '1.23']
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ matrix.go-version }}
+        
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-${{ matrix.go-version }}-
+          
+    - name: Download dependencies
+      run: go mod download
+      
+    - name: Run tests
+      run: go test -v -race -coverprofile=coverage.out ./...
+      
+    - name: Upload coverage to Codecov
+      if: matrix.go-version == '1.23'
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.out
+
+  build:
+    name: Build Plugin
+    runs-on: ubuntu-latest
+    needs: test
+    strategy:
+      matrix:
+        go-version: ['1.23']
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ matrix.go-version }}
+        
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-${{ matrix.go-version }}-
+          
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc libc6-dev
+        
+    - name: Build using script
+      run: ./scripts/build.sh all
+      
+    - name: Test plugin loading
+      run: |
+        # Build the example loader
+        go build -o plugin-loader ./examples/plugin_loader.go
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: native-submit-plugin-${{ github.sha }}
+        path: |
+          build/native-submit-plugin.so
+          build/native-submit-plugin
+          plugin.yaml
+        retention-days: 30
+
+  build-matrix:
+    name: Build Matrix
+    runs-on: ${{ matrix.os }}
+    needs: test
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        go-version: ['1.23']
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ matrix.go-version }}
+        
+    - name: Install build dependencies (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc libc6-dev
+        
+    - name: Install build dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        # Xcode command line tools should already be available
+        xcode-select --install || true
+        
+    - name: Build plugin
+      run: |
+        export CGO_ENABLED=1
+        go build -buildmode=plugin -o native-submit-plugin-${{ matrix.os }}.so ./main
+        
+    - name: Build binary
+      run: |
+        go build -o native-submit-plugin-${{ matrix.os }} ./main
+        
+    - name: Upload platform artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: native-submit-plugin-${{ matrix.os }}-${{ github.sha }}
+        path: |
+          native-submit-plugin-${{ matrix.os }}.so
+          native-submit-plugin-${{ matrix.os }}
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [build, build-matrix]
+    if: github.event_name == 'release'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+      
+    - name: Create release assets
+      run: |
+        mkdir -p release
+        # Collect all built artifacts
+        find . -name "*.so" -exec cp {} release/ \;
+        find . -name "native-submit-plugin-*" -type f -exec cp {} release/ \;
+        cp plugin.yaml release/
+        
+    - name: Upload release assets
+      uses: softprops/action-gh-release@v1
+      with:
+        files: release/*
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

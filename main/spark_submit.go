@@ -53,7 +53,7 @@ const (
 // Logic involved in moving "New" Spark Application to "Submitted" state is implemented in Golang with this function RunAltSparkSubmit as starting step
 // 3 Resources are created in this logic per new Spark Application, in the order listed: ConfigMap for the Spark Application, Driver Pod, Driver Service
 
-func runAltSparkSubmit(ctx context.Context, app *v1beta2.SparkApplication) (bool, error) {
+func RunAltSparkSubmit(ctx context.Context, app *v1beta2.SparkApplication) (bool, error) {
 
 	// Check if the context is nil
 	// Check if the Spark Application is nil
@@ -164,4 +164,55 @@ func randomHex(n int) (string, error) {
 func main() {
 	fmt.Println("Native Submit Plugin for Spark Applications")
 	fmt.Println("This plugin provides native Kubernetes submission capabilities for Spark applications")
+}
+
+// Plugin interface for external consumption
+type SparkSubmitPlugin interface {
+	SubmitSparkApplication(ctx context.Context, app *v1beta2.SparkApplication) (bool, error)
+	GetPluginInfo() PluginInfo
+}
+
+type PluginInfo struct {
+	Name        string
+	Version     string
+	Description string
+}
+
+// Plugin implementation
+type nativeSubmitPlugin struct{}
+
+// GetPluginInfo returns information about this plugin
+func (p *nativeSubmitPlugin) GetPluginInfo() PluginInfo {
+	return PluginInfo{
+		Name:        "native-submit-plugin",
+		Version:     "1.0.0",
+		Description: "Native Kubernetes submission plugin for Spark applications",
+	}
+}
+
+// SubmitSparkApplication is the main plugin entry point
+func (p *nativeSubmitPlugin) SubmitSparkApplication(ctx context.Context, app *v1beta2.SparkApplication) (bool, error) {
+	return RunAltSparkSubmit(ctx, app)
+}
+
+// Exported variable that the plugin loader can access
+var SparkSubmitPluginInstance SparkSubmitPlugin = &nativeSubmitPlugin{}
+
+// New creates a new instance of the plugin (exported function for plugin loading)
+func New() SparkSubmitPlugin {
+	return &nativeSubmitPlugin{}
+}
+
+// Submit is an exported wrapper function for compatibility
+func Submit(ctx context.Context, app *v1beta2.SparkApplication) (bool, error) {
+	return RunAltSparkSubmit(ctx, app)
+}
+
+// GetInfo returns plugin information (exported function)
+func GetInfo() PluginInfo {
+	return PluginInfo{
+		Name:        "native-submit-plugin",
+		Version:     "1.0.0",
+		Description: "Native Kubernetes submission plugin for Spark applications",
+	}
 }

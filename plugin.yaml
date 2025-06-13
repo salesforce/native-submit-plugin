@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Plugin
+metadata:
+  name: native-submit-plugin
+  version: "1.0.0"
+  description: "Native Kubernetes submission plugin for Spark applications"
+spec:
+  type: "spark-submit"
+  runtime: "go"
+  entrypoint: "main/spark_submit.go"
+  interfaces:
+    - name: "SparkSubmitPlugin"
+      methods:
+        - "SubmitSparkApplication"
+        - "GetPluginInfo"
+  exports:
+    - "New"
+    - "Submit"
+    - "GetInfo"
+    - "SparkSubmitPluginInstance"
+  dependencies:
+    - "k8s.io/client-go"
+    - "github.com/kubeflow/spark-operator/api/v1beta2"
+    - "sigs.k8s.io/controller-runtime/pkg/client"
+  build:
+    mode: "plugin"
+    output: "native-submit-plugin.so"
+    flags:
+      - "-buildmode=plugin"
+  compatibility:
+    go_version: ">=1.21"
+    k8s_version: ">=1.25"
+    spark_operator_version: ">=1.1.0" 

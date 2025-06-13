@@ -130,7 +130,7 @@ func TestCreate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := fake.NewClientBuilder().WithScheme(scheme).Build()
-			err := Create(tt.app, tt.serviceLabels, tt.driverConfigMapName, client, tt.appSpecVolumeMounts, tt.appSpecVolumes)
+			err := Create(context.TODO(), tt.app, tt.serviceLabels, tt.driverConfigMapName, client, tt.appSpecVolumeMounts, tt.appSpecVolumes)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {

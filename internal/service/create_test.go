@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"nativesubmit/common"
 	"testing"
 
@@ -83,7 +84,7 @@ func TestCreate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := fake.NewClientBuilder().WithScheme(scheme).Build()
-			err := Create(tt.app, tt.serviceSelectorLabels, client, tt.createdApplicationId, tt.serviceName)
+			err := Create(context.TODO(), tt.app, tt.serviceSelectorLabels, client, tt.createdApplicationId, tt.serviceName)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {

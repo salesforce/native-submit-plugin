@@ -20,6 +20,8 @@ A high-performance alternative to `spark-submit` for launching Spark application
 
 ## Installation
 
+### Building as Go Plugin
+
 1. Clone the repository:
    ```bash
    git clone https://github.com/your-org/native-submit-plugin.git
@@ -28,16 +30,70 @@ A high-performance alternative to `spark-submit` for launching Spark application
 
 2. Build the plugin:
    ```bash
-   go build -buildmode=plugin -o plugin.so ./main
+   # Build plugin shared object
+   make plugin
+   
+   # Or use go directly
+   go build -buildmode=plugin -o native-submit-plugin.so ./main
    ```
 
-3. Deploy the plugin to your cluster:
+3. Install locally for testing:
    ```bash
-   kubectl apply -f deploy/
+   make install-local
    ```
+
+### Building as Regular Binary
+
+```bash
+# Build regular binary
+make build
+
+# Or use go directly  
+go build -o native-submit-plugin ./main
+```
 
 ## Usage
-native-submit will be  plugin to spark operator.
+
+### As a Go Plugin
+
+The plugin can be loaded dynamically at runtime:
+
+```go
+import "plugin"
+
+// Load the plugin
+p, err := plugin.Open("./native-submit-plugin.so")
+if err != nil {
+    log.Fatal(err)
+}
+
+// Get the plugin instance
+symPlugin, err := p.Lookup("SparkSubmitPluginInstance")
+sparkPlugin := symPlugin.(SparkSubmitPlugin)
+
+// Use the plugin
+success, err := sparkPlugin.SubmitSparkApplication(ctx, sparkApp)
+```
+
+See `examples/plugin_loader.go` for a complete example.
+
+### Plugin Interface
+
+The plugin exposes the following interface:
+
+```go
+type SparkSubmitPlugin interface {
+    SubmitSparkApplication(ctx context.Context, app *v1beta2.SparkApplication) (bool, error)
+    GetPluginInfo() PluginInfo
+}
+```
+
+### Exported Functions
+
+- `New() SparkSubmitPlugin` - Creates a new plugin instance
+- `Submit(ctx, app) (bool, error)` - Direct submission function
+- `GetInfo() PluginInfo` - Returns plugin metadata
+- `SparkSubmitPluginInstance` - Pre-instantiated plugin variable
 
 
 ## Architecture
