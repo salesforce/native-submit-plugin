@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	v1beta2 "github.com/kubeflow/spark-operator/api/v1beta2"
+	v1beta2 "github.com/kubeflow/spark-operator/v2/api/v1beta2"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -187,14 +187,10 @@ func TestPopulateMemoryInfo(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sparkConfKeyValuePairs := make(map[string]string)
-			result := populateMemoryInfo("", tt.app, sparkConfKeyValuePairs)
+			result := populateMemoryInfo(tt.app, sparkConfKeyValuePairs)
 			for _, expected := range tt.want {
 				assert.Contains(t, result, expected)
 			}
 		})
 	}
-}
-
-func int64ptr(i int64) *int64 {
-	return &i
 }

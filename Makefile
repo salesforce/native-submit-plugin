@@ -7,7 +7,7 @@ PLUGIN_NAME = native-submit-plugin
 PLUGIN_OUTPUT = $(PLUGIN_NAME).so
 BINARY_OUTPUT = $(PLUGIN_NAME)
 MAIN_DIR = ./main
-GO_VERSION = 1.23.1
+GO_VERSION = 1.24.1
 
 # Default target
 all: deps vet test both
@@ -67,6 +67,15 @@ docker-build:
 	@echo "Building Docker image..."
 	docker build -t $(PLUGIN_NAME):latest .
 
+# Build plugin for Linux using Docker
+build-linux:
+	@echo "Building Linux plugin using Docker..."
+	-docker rm -f temp-builder
+	docker build --target builder -t $(PLUGIN_NAME)-builder -f Dockerfile .
+	docker create --name temp-builder $(PLUGIN_NAME)-builder
+	docker cp temp-builder:/app/native-submit-plugin.so .
+	docker rm -f temp-builder
+
 # Help
 help:
 	@echo "Available targets:"
@@ -82,4 +91,5 @@ help:
 	@echo "  clean        - Clean build artifacts"
 	@echo "  install-local- Install plugin to ./plugins/ directory"
 	@echo "  docker-build - Build Docker image"
+	@echo "  build-linux  - Build linux plugin using Docker"
 	@echo "  help         - Show this help" 

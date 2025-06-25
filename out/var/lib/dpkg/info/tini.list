@@ -1,0 +1,10 @@
+/.
+/usr
+/usr/bin
+/usr/bin/tini
+/usr/bin/tini-static
+/usr/share
+/usr/share/doc
+/usr/share/doc/tini
+/usr/share/doc/tini/changelog.Debian.gz
+/usr/share/doc/tini/copyright

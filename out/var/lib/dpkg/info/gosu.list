@@ -1,0 +1,9 @@
+/.
+/usr
+/usr/sbin
+/usr/sbin/gosu
+/usr/share
+/usr/share/doc
+/usr/share/doc/gosu
+/usr/share/doc/gosu/changelog.Debian.gz
+/usr/share/doc/gosu/copyright

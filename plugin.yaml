@@ -20,7 +20,7 @@ spec:
     - "SparkSubmitPluginInstance"
   dependencies:
     - "k8s.io/client-go"
-    - "github.com/kubeflow/spark-operator/api/v1beta2"
+    - "github.com/kubeflow/spark-operator/v2/api/v1beta2"
     - "sigs.k8s.io/controller-runtime/pkg/client"
   build:
     mode: "plugin"

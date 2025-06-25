@@ -1,0 +1,11 @@
+c9ce78b29f3b72fc0a7b67dd9e73a3e8  usr/lib/cmake/nss_wrapper/nss_wrapper-config-version.cmake
+e59ba458772c56d4b5c7ac179272847b  usr/lib/cmake/nss_wrapper/nss_wrapper-config.cmake
+be2b27ed23f5b613fe3122621823d7df  usr/lib/libnss_wrapper.so
+8c8e47f94e9a76f1021a532386e19ca9  usr/lib/pkgconfig/nss_wrapper.pc
+b283b88ece6ecafa6c45b27621787e79  usr/share/doc/libnss-wrapper/AUTHORS
+93078bf00580b4fb8aebbf548ba389a8  usr/share/doc/libnss-wrapper/README
+daa65d58733cd4b91ec9a32187e2b017  usr/share/doc/libnss-wrapper/TODO
+390a6ba69fa8702f1448d086cb4a40a3  usr/share/doc/libnss-wrapper/changelog.Debian.gz
+3b24da080fb2a5683d9cefde9f5bd93a  usr/share/doc/libnss-wrapper/copyright
+6f443e27923ea8eb4057c1e115779d46  usr/share/lintian/overrides/libnss-wrapper
+3678397f3cedef49e86da0469717525a  usr/share/man/man1/nss_wrapper.1.gz

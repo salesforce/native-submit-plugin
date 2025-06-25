@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/kubeflow/spark-operator/api/v1beta2"
+	"github.com/kubeflow/spark-operator/v2/api/v1beta2"
 	apiv1 "k8s.io/api/core/v1"
 	apiErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,7 +30,6 @@ func createConfigMapUtil(configMapName string, app *v1beta2.SparkApplication, co
 		},
 		Data: configMapData,
 	}
-
 	createConfigMapErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		existingConfigMap := &apiv1.ConfigMap{}
 		err := kubeClient.Get(context.TODO(), ctrlClient.ObjectKeyFromObject(configMap), existingConfigMap)

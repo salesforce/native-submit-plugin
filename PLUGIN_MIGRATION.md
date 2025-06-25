@@ -69,7 +69,7 @@ make clean         # Clean artifacts
 ### 6. CI/CD Pipeline (`.github/workflows/build.yml`)
 
 **Added:**
-- Multi-version Go testing (1.21, 1.22, 1.23)
+- Multi-version Go testing (1.24.1)
 - Cross-platform builds (Linux, macOS)
 - Artifact uploads
 - Release automation

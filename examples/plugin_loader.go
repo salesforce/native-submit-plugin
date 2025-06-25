@@ -6,7 +6,7 @@ import (
 	"log"
 	"plugin"
 
-	"github.com/kubeflow/spark-operator/api/v1beta2"
+	"github.com/kubeflow/spark-operator/v2/api/v1beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -25,7 +25,7 @@ type SparkSubmitPlugin interface {
 
 func main() {
 	// Load the plugin
-	pluginPath := "./native-submit-plugin.so"
+	pluginPath := "native-submit-plugin.so"
 	p, err := plugin.Open(pluginPath)
 	if err != nil {
 		log.Fatalf("Failed to load plugin: %v", err)

@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"strconv"
 
-	"github.com/kubeflow/spark-operator/api/v1beta2"
+	"github.com/kubeflow/spark-operator/v2/api/v1beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -70,8 +70,8 @@ func GetOwnerReference(app *v1beta2.SparkApplication) *metav1.OwnerReference {
 	return &metav1.OwnerReference{
 		APIVersion: v1beta2.SchemeGroupVersion.String(),
 		Kind:       reflect.TypeOf(v1beta2.SparkApplication{}).Name(),
-		Name:       app.Name,
-		UID:        app.UID,
+		Name:       app.GetObjectMeta().GetName(),
+		UID:        app.GetObjectMeta().GetUID(),
 		Controller: &controller,
 	}
 }
