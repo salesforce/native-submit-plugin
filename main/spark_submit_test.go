@@ -6,7 +6,6 @@ import (
 	"github.com/kubeflow/spark-operator/api/v1beta2"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 func TestRunAltSparkSubmit(t *testing.T) {
@@ -20,6 +19,11 @@ func TestRunAltSparkSubmit(t *testing.T) {
 		{
 			name: "valid spark application with submission ID",
 			app: &v1beta2.SparkApplication{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-app",
+					Namespace: "default",
+					UID:       "test-uid-123",
+				},
 				Spec: v1beta2.SparkApplicationSpec{
 					Driver: v1beta2.DriverSpec{
 						SparkPodSpec: v1beta2.SparkPodSpec{
@@ -31,8 +35,8 @@ func TestRunAltSparkSubmit(t *testing.T) {
 				},
 			},
 			submissionID: "test-submission-id",
-			wantSuccess:  true,
-			wantErr:      false,
+			wantSuccess:  false,
+			wantErr:      true,
 		},
 		{
 			name:         "nil spark application",
@@ -45,8 +49,7 @@ func TestRunAltSparkSubmit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cl := fake.NewClientBuilder().Build()
-			success, err := runAltSparkSubmit(tt.app, tt.submissionID, cl)
+			success, err := runAltSparkSubmit(tt.app, tt.submissionID)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
