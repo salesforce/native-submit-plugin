@@ -3,6 +3,7 @@ package configmap
 import (
 	"context"
 	"fmt"
+	"log"
 	"nativesubmit/common"
 	"os"
 	"strings"
@@ -11,8 +12,8 @@ import (
 	apiv1 "k8s.io/api/core/v1"
 	apiErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/retry"
-	ctrlClient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -21,33 +22,116 @@ const (
 )
 
 // CreateConfigMapUtil Helper func to create Spark Application configmap
-func createConfigMapUtil(configMapName string, app *v1beta2.SparkApplication, configMapData map[string]string, kubeClient ctrlClient.Client) error {
+func createConfigMapUtil(configMapName string, app *v1beta2.SparkApplication, configMapData map[string]string, kubeClient *kubernetes.Clientset) error {
+	log.Printf("=== Starting createConfigMapUtil ===")
+	log.Printf("ConfigMap name: %s, Namespace: %s", configMapName, app.Namespace)
+
+	// Test Kubernetes client connectivity
+	_, err := kubeClient.CoreV1().Namespaces().Get(context.TODO(), app.Namespace, metav1.GetOptions{})
+	if err != nil {
+		log.Printf("ERROR: Cannot access namespace %s: %v", app.Namespace, err)
+		return fmt.Errorf("cannot access namespace %s: %w", app.Namespace, err)
+	}
+	log.Printf("Kubernetes client connectivity verified - can access namespace: %s", app.Namespace)
+
+	// Test ConfigMap permissions by listing ConfigMaps
+	configMaps, listErr := kubeClient.CoreV1().ConfigMaps(app.Namespace).List(context.TODO(), metav1.ListOptions{})
+	if listErr != nil {
+		log.Printf("WARNING: Cannot list ConfigMaps in namespace %s: %v", app.Namespace, listErr)
+	} else {
+		log.Printf("ConfigMap permissions verified - found %d ConfigMaps in namespace %s", len(configMaps.Items), app.Namespace)
+	}
+
+	// Check if ConfigMap data is too large (Kubernetes limit is 1MB)
+	totalSize := 0
+	for key, value := range configMapData {
+		totalSize += len(key) + len(value)
+	}
+	log.Printf("ConfigMap data size: %d bytes", totalSize)
+
+	// If total size exceeds 900KB (leaving some buffer), split the data
+	if totalSize > 900*1024 {
+		log.Printf("WARNING: ConfigMap data size exceeds 900KB, attempting to truncate largest entry")
+		// Split the largest data entry if possible
+		largestKey := ""
+		largestValue := ""
+		for key, value := range configMapData {
+			if len(value) > len(largestValue) {
+				largestKey = key
+				largestValue = value
+			}
+		}
+
+		// If the largest value is too big, truncate it
+		if len(largestValue) > 500*1024 {
+			log.Printf("Truncating largest entry: %s (size: %d bytes)", largestKey, len(largestValue))
+			configMapData[largestKey] = largestValue[:500*1024] + "\n# ... (truncated due to size limit)"
+		}
+	}
+
+	ownerRef := common.GetConfigMapOwnerReference(app)
+
+	// Log ConfigMap creation details for debugging
+	if ownerRef != nil {
+		log.Printf("Creating ConfigMap %s in namespace %s with owner UID: %s, total data size: %d bytes",
+			configMapName, app.Namespace, ownerRef.UID, totalSize)
+	} else {
+		log.Printf("Creating ConfigMap %s in namespace %s without owner reference, total data size: %d bytes",
+			configMapName, app.Namespace, totalSize)
+	}
+
 	configMap := &apiv1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            configMapName,
 			Namespace:       app.Namespace,
-			OwnerReferences: []metav1.OwnerReference{*common.GetOwnerReference(app)},
+			OwnerReferences: []metav1.OwnerReference{*ownerRef},
 		},
 		Data: configMapData,
 	}
 
 	createConfigMapErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		existingConfigMap := &apiv1.ConfigMap{}
-		err := kubeClient.Get(context.TODO(), ctrlClient.ObjectKeyFromObject(configMap), existingConfigMap)
-		//cm, err := kubeClient.CoreV1().ConfigMaps(app.Namespace).Get(context.TODO(), configMapName, metav1.GetOptions{})
+		log.Printf("Attempting to create/update ConfigMap...")
+		cm, err := kubeClient.CoreV1().ConfigMaps(app.Namespace).Get(context.TODO(), configMapName, metav1.GetOptions{})
 		if apiErrors.IsNotFound(err) {
-			createErr := kubeClient.Create(context.TODO(), configMap)
-			//_, createErr := kubeClient.CoreV1().ConfigMaps(app.Namespace).Create(context.TODO(), configMap, metav1.CreateOptions{})
-			return createErr
+			log.Printf("ConfigMap not found, creating new one...")
+			createdCM, createErr := kubeClient.CoreV1().ConfigMaps(app.Namespace).Create(context.TODO(), configMap, metav1.CreateOptions{})
+			if createErr != nil {
+				log.Printf("ERROR: Failed to create ConfigMap: %v", createErr)
+				return createErr
+			}
+			log.Printf("Successfully created ConfigMap: %s with UID: %s", configMapName, createdCM.UID)
+
+			// Verify the ConfigMap was actually created
+			verifyCM, verifyErr := kubeClient.CoreV1().ConfigMaps(app.Namespace).Get(context.TODO(), configMapName, metav1.GetOptions{})
+			if verifyErr != nil {
+				log.Printf("WARNING: ConfigMap creation verification failed: %v", verifyErr)
+			} else {
+				log.Printf("ConfigMap verification successful - Name: %s, UID: %s, Data entries: %d",
+					verifyCM.Name, verifyCM.UID, len(verifyCM.Data))
+			}
+			return nil
 		}
 		if err != nil {
+			log.Printf("ERROR: Failed to get existing ConfigMap: %v", err)
 			return err
 		}
-		existingConfigMap.Data = configMapData
-		updateErr := kubeClient.Update(context.TODO(), existingConfigMap)
-		//_, updateErr := kubeClient.CoreV1().ConfigMaps(app.Namespace).Update(context.TODO(), cm, metav1.UpdateOptions{})
+		log.Printf("ConfigMap exists, updating...")
+		cm.Data = configMapData
+		_, updateErr := kubeClient.CoreV1().ConfigMaps(app.Namespace).Update(context.TODO(), cm, metav1.UpdateOptions{})
+		if updateErr != nil {
+			log.Printf("ERROR: Failed to update ConfigMap: %v", updateErr)
+			return updateErr
+		}
+		log.Printf("Successfully updated ConfigMap: %s", configMapName)
 		return updateErr
 	})
+
+	if createConfigMapErr != nil {
+		log.Printf("ERROR: Final ConfigMap creation/update failed: %v", createConfigMapErr)
+	} else {
+		log.Printf("=== Successfully completed createConfigMapUtil ===")
+	}
+
 	return createConfigMapErr
 }
 func AddEscapeCharacter(configMapArg string) string {

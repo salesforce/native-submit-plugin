@@ -3,6 +3,7 @@ package driver
 import (
 	"context"
 	"fmt"
+	"log"
 	"math"
 	"nativesubmit/common"
 	"os"
@@ -14,31 +15,43 @@ import (
 	apiErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/retry"
-	ctrlClient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // Helper func to create Driver Pod of the Spark Application
-func Create(app *v1beta2.SparkApplication, serviceLabels map[string]string, driverConfigMapName string, kubeClient ctrlClient.Client, appSpecVolumeMounts []apiv1.VolumeMount, appSpecVolumes []apiv1.Volume) error {
+func Create(app *v1beta2.SparkApplication, serviceLabels map[string]string, driverConfigMapName string, kubeClient *kubernetes.Clientset, appSpecVolumeMounts []apiv1.VolumeMount, appSpecVolumes []apiv1.Volume) (string, error) {
+	log.Printf("=== Starting Driver Pod creation for app: %s, namespace: %s ===", app.Name, app.Namespace)
+	log.Printf("Driver ConfigMap name: %s", driverConfigMapName)
+	log.Printf("Service labels count: %d", len(serviceLabels))
+
 	if app == nil {
-		return fmt.Errorf("spark application cannot be nil")
+		log.Printf("ERROR: Spark application is nil")
+		return "", fmt.Errorf("spark application cannot be nil")
 	}
+
 	//Load template file, if one supplied
 	var initialPod apiv1.Pod
 	var err error
 	driverPodtemplateFile, templateFileExists := app.Spec.SparkConf["spark.kubernetes.driver.podTemplateFile"]
 	if templateFileExists {
+		log.Printf("Pod template file specified: %s", driverPodtemplateFile)
 		podTemplateDriverContainerName := app.Spec.SparkConf["spark.kubernetes.driver.podTemplateContainerName"]
 		initialPod, err = loadPodFromTemplate(driverPodtemplateFile, podTemplateDriverContainerName, app.Spec.SparkConf)
 		if err != nil {
-			return fmt.Errorf("failed to load template file for the driver pod %s in namespace %s: %v", common.GetDriverPodName(app), app.Namespace, err)
-
+			log.Printf("ERROR: Failed to load template file: %v", err)
+			return "", fmt.Errorf("failed to load template file for the driver pod %s in namespace %s: %v", common.GetDriverPodName(app), app.Namespace, err)
 		}
+		log.Printf("Successfully loaded pod template")
 	}
+
 	//Driver pod spec instance
 	var driverPodSpec apiv1.PodSpec
 	if templateFileExists {
 		driverPodSpec = initialPod.Spec
+		log.Printf("Using pod spec from template")
+	} else {
+		log.Printf("Using default pod spec")
 	}
 
 	// Spark Application Driver Pod schema populating with specific values/data
@@ -52,7 +65,9 @@ func Create(app *v1beta2.SparkApplication, serviceLabels map[string]string, driv
 	//Driver pod annotations
 	if app.Spec.Driver.Annotations != nil {
 		podObjectMetadata.Annotations = app.Spec.Driver.Annotations
+		log.Printf("Using driver annotations from spec")
 	} else {
+		log.Printf("No driver annotations in spec, checking sparkConf")
 		annotations := make(map[string]string)
 		for sparkConfKey, sparkConfValue := range app.Spec.SparkConf {
 			if strings.Contains(sparkConfKey, "spark.kubernetes.driver.annotation.") {
@@ -63,10 +78,12 @@ func Create(app *v1beta2.SparkApplication, serviceLabels map[string]string, driv
 		}
 		if len(annotations) > 0 {
 			podObjectMetadata.Annotations = annotations
+			log.Printf("Added %d annotations from sparkConf", len(annotations))
 		}
 	}
 	//Driver Pod Owner Reference
 	podObjectMetadata.OwnerReferences = []metav1.OwnerReference{*common.GetOwnerReference(app)}
+	log.Printf("Driver pod name: %s, namespace: %s", podObjectMetadata.Name, podObjectMetadata.Namespace)
 
 	//Driver pod DNS policy
 	driverPodSpec.DNSPolicy = SparkDriverDNSPolicy
@@ -80,9 +97,6 @@ func Create(app *v1beta2.SparkApplication, serviceLabels map[string]string, driv
 	if app.Spec.NodeSelector != nil {
 		driverPodSpec.NodeSelector = app.Spec.NodeSelector
 	} else if app.Spec.Driver.NodeSelector != nil {
-		//for key, value := range app.Spec.Driver.NodeSelector {
-		//	driverPodSpec.NodeSelector[key] = value
-		//}
 		driverPodSpec.NodeSelector = app.Spec.Driver.NodeSelector
 	} else {
 		nodeSelectorList := make(map[string]string)
@@ -149,6 +163,8 @@ func Create(app *v1beta2.SparkApplication, serviceLabels map[string]string, driv
 		}
 	}
 	//Service Account
+	log.Printf("Service account: %v", app.Spec.Driver.ServiceAccount)
+
 	if app.Spec.Driver.ServiceAccount != nil {
 		driverPodSpec.ServiceAccountName = *app.Spec.Driver.ServiceAccount
 	} else if common.CheckSparkConf(app.Spec.SparkConf, "spark.kubernetes.authenticate.driver.serviceAccountName") {
@@ -224,7 +240,7 @@ func Create(app *v1beta2.SparkApplication, serviceLabels map[string]string, driv
 	var containerSpecList []apiv1.Container
 	localDirFeatureSetupError := handleLocalDirsFeatureStep(app, resolvedLocalDirs, &driverPodVolumes, &driverPodContainerSpec.VolumeMounts, &driverPodContainerSpec.Env, appSpecVolumeMounts, appSpecVolumes)
 	if localDirFeatureSetupError != nil {
-		return fmt.Errorf("failed to setup local directory for the driver pod %s in namespace %s: %v", common.GetDriverPodName(app), app.Namespace, localDirFeatureSetupError)
+		return "", fmt.Errorf("failed to setup local directory for the driver pod %s in namespace %s: %v", common.GetDriverPodName(app), app.Namespace, localDirFeatureSetupError)
 	}
 
 	volumeExtension := "-volume"
@@ -265,11 +281,9 @@ func Create(app *v1beta2.SparkApplication, serviceLabels map[string]string, driv
 	//Check existence of pod
 	createPodErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		existingDriverPod := &apiv1.Pod{}
-		err := kubeClient.Get(context.TODO(), ctrlClient.ObjectKeyFromObject(driverPod), existingDriverPod)
-		//driverPodExisting, err := kubeClient.CoreV1().Pods(app.Namespace).Get(context.TODO(), podObjectMetadata.Name, metav1.GetOptions{})
+		_, err := kubeClient.CoreV1().Pods(app.Namespace).Get(context.TODO(), podObjectMetadata.Name, metav1.GetOptions{})
 		if apiErrors.IsNotFound(err) {
-			createErr := kubeClient.Create(context.TODO(), driverPod)
-			//_, createErr := kubeClient.CoreV1().Pods(app.Namespace).Create(context.TODO(), driverPod, metav1.CreateOptions{})
+			_, createErr := kubeClient.CoreV1().Pods(app.Namespace).Create(context.TODO(), driverPod, metav1.CreateOptions{})
 
 			if createErr != nil {
 				return fmt.Errorf("error while creating driver pod: %w", createErr)
@@ -282,7 +296,7 @@ func Create(app *v1beta2.SparkApplication, serviceLabels map[string]string, driv
 		}
 		existingDriverPod.ObjectMeta = podObjectMetadata
 		existingDriverPod.Spec = driverPodSpec
-		updateErr := kubeClient.Update(context.TODO(), existingDriverPod)
+		_, updateErr := kubeClient.CoreV1().Pods(app.Namespace).Update(context.TODO(), existingDriverPod, metav1.UpdateOptions{})
 		if updateErr != nil {
 			return fmt.Errorf("error while updating driver pod: %w", updateErr)
 		}
@@ -291,10 +305,18 @@ func Create(app *v1beta2.SparkApplication, serviceLabels map[string]string, driv
 	})
 
 	if createPodErr != nil {
-		return fmt.Errorf("failed to create/update driver pod %s in namespace %s: %v", common.GetDriverPodName(app), app.Namespace, createPodErr)
+		return "", fmt.Errorf("failed to create/update driver pod %s in namespace %s: %v", common.GetDriverPodName(app), app.Namespace, createPodErr)
 	}
 
-	return nil
+	// Get the created pod to retrieve its UID
+	pod, err := kubeClient.CoreV1().Pods(app.Namespace).Get(context.TODO(), common.GetDriverPodName(app), metav1.GetOptions{})
+	if err != nil {
+		log.Printf("WARNING: Failed to retrieve created pod for UID: %v", err)
+		return "", nil // Return empty UID but no error since pod was created successfully
+	}
+
+	log.Printf("=== Driver Pod creation successful for app: %s, namespace: %s, Pod UID: %s ===", app.Name, app.Namespace, pod.UID)
+	return string(pod.UID), nil
 }
 
 func handleSideCars(app *v1beta2.SparkApplication, containerSpecList []apiv1.Container, appSpecVolumes []apiv1.Volume) []apiv1.Container {
@@ -649,7 +671,7 @@ func handleResources(app *v1beta2.SparkApplication) apiv1.ResourceRequirements {
 		memoryQuantity = resource.MustParse(app.Spec.SparkConf[SparkDriverMemory])
 		memoryValExists = true
 	} else { //setting default value
-		memoryQuantity = resource.MustParse("1")
+		memoryQuantity = resource.MustParse("512Mi")
 	}
 
 	var cpuQuantity resource.Quantity
