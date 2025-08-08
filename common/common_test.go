@@ -227,6 +227,53 @@ func TestGetOwnerReference(t *testing.T) {
 	assert.False(t, *ref.Controller)
 }
 
+func TestGetServiceOwnerReference(t *testing.T) {
+	app := &v1beta2.SparkApplication{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-app",
+			UID:  "test-uid",
+		},
+	}
+
+	// Test with Pod UID
+	ref := GetServiceOwnerReference(app, "pod-uid-123")
+	assert.NotNil(t, ref)
+	assert.Equal(t, "v1", ref.APIVersion)
+	assert.Equal(t, "Pod", ref.Kind)
+	assert.Equal(t, "test-app-driver", ref.Name) // Default driver pod name
+	assert.Equal(t, "pod-uid-123", string(ref.UID))
+	assert.True(t, *ref.Controller)
+	assert.True(t, *ref.BlockOwnerDeletion)
+
+	// Test without Pod UID (fallback to app UID)
+	ref2 := GetServiceOwnerReference(app, "")
+	assert.NotNil(t, ref2)
+	assert.Equal(t, "v1", ref2.APIVersion)
+	assert.Equal(t, "Pod", ref2.Kind)
+	assert.Equal(t, "test-app-driver", ref2.Name)
+	assert.Equal(t, "test-uid", string(ref2.UID)) // Falls back to app UID
+	assert.True(t, *ref2.Controller)
+	assert.True(t, *ref2.BlockOwnerDeletion)
+}
+
+func TestGetConfigMapOwnerReference(t *testing.T) {
+	app := &v1beta2.SparkApplication{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-app",
+			UID:  "test-uid",
+		},
+	}
+
+	ref := GetConfigMapOwnerReference(app)
+	assert.NotNil(t, ref)
+	assert.Equal(t, v1beta2.SchemeGroupVersion.String(), ref.APIVersion)
+	assert.Equal(t, "SparkApplication", ref.Kind)
+	assert.Equal(t, "test-app", ref.Name)
+	assert.Equal(t, "test-uid", string(ref.UID))
+	assert.True(t, *ref.Controller)
+	assert.True(t, *ref.BlockOwnerDeletion)
+}
+
 func TestGetMemoryOverheadFactor(t *testing.T) {
 	tests := []struct {
 		name     string
