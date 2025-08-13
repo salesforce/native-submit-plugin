@@ -1,59 +1,130 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  annotations:
+    deployment.kubernetes.io/revision: "5"
+    meta.helm.sh/release-name: spark-operator
+    meta.helm.sh/release-namespace: spark-operator
+  creationTimestamp: "2025-08-11T21:38:47Z"
+  generation: 5
+  labels:
+    app.kubernetes.io/component: controller
+    app.kubernetes.io/instance: spark-operator
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: spark-operator
+    app.kubernetes.io/version: 2.3.0
+    helm.sh/chart: spark-operator-2.3.0
   name: spark-operator-controller
   namespace: spark-operator
+  resourceVersion: "84761"
+  uid: 4f4355cf-1907-4b1f-b9bb-5c8ab1a6c7d4
 spec:
+  progressDeadlineSeconds: 600
   replicas: 1
+  revisionHistoryLimit: 10
   selector:
     matchLabels:
       app.kubernetes.io/component: controller
       app.kubernetes.io/instance: spark-operator
       app.kubernetes.io/name: spark-operator
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
   template:
     metadata:
+      annotations:
+        prometheus.io/path: /metrics
+        prometheus.io/port: "8080"
+        prometheus.io/scrape: "true"
+      creationTimestamp: null
       labels:
         app.kubernetes.io/component: controller
         app.kubernetes.io/instance: spark-operator
         app.kubernetes.io/name: spark-operator
     spec:
+      automountServiceAccountToken: true
       containers:
-      - name: spark-operator-controller
-        image: ghcr.io/kubeflow/spark-operator/controller:2.2.1
-        args:
+      - image: docker.io/library/native-submit-plugin:0813202502
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz
+            port: 9090
+            scheme: HTTP
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: native-submit
+        ports:
+        - containerPort: 50051
+          name: metrics
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /readyz
+            port: 9090
+            scheme: HTTP
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      - args:
         - controller
         - start
         - --zap-log-level=info
+        - --zap-encoder=console
         - --namespaces=default
         - --controller-threads=10
         - --enable-ui-service=true
         - --enable-metrics=true
         - --metrics-bind-address=:8080
         - --metrics-endpoint=/metrics
+        - --metrics-prefix=
+        - --metrics-labels=app_type
+        - --metrics-job-start-latency-buckets=30,60,90,120,150,180,210,240,270,300
         - --leader-election=true
         - --leader-election-lock-name=spark-operator-controller-lock
         - --leader-election-lock-namespace=spark-operator
+        - --workqueue-ratelimiter-bucket-qps=50
+        - --workqueue-ratelimiter-bucket-size=500
+        - --workqueue-ratelimiter-max-delay=6h
+        - --driver-pod-creation-grace-period=10s
+        - --max-tracked-executor-per-app=1000
         - --submitter-type=grpc
         - --grpc-server-address=localhost:50051
         - --grpc-submit-timeout=10s
+        image: docker.io/library/spark-operator:08112026
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz
+            port: 8081
+            scheme: HTTP
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: spark-operator-controller
         ports:
         - containerPort: 8080
           name: metrics
           protocol: TCP
-        livenessProbe:
-          httpGet:
-            path: /healthz
-            port: 8081
-          periodSeconds: 10
-          timeoutSeconds: 1
-          failureThreshold: 3
         readinessProbe:
+          failureThreshold: 3
           httpGet:
             path: /readyz
             port: 8081
+            scheme: HTTP
           periodSeconds: 10
+          successThreshold: 1
           timeoutSeconds: 1
-          failureThreshold: 3
+        resources: {}
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -64,65 +135,20 @@ spec:
           runAsNonRoot: true
           seccompProfile:
             type: RuntimeDefault
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
         volumeMounts:
         - mountPath: /tmp
           name: tmp
-      
-      # Native Submit Plugin Sidecar
-      - name: native-submit
-        image: your-registry/native-submit:latest
-        ports:
-        - containerPort: 50051
-          name: grpc
-          protocol: TCP
-        - containerPort: 9090
-          name: health
-          protocol: TCP
-        env:
-        - name: GRPC_PORT
-          value: "50051"
-        - name: HEALTH_PORT
-          value: "9090"
-        livenessProbe:
-          httpGet:
-            path: /healthz
-            port: 9090
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        readinessProbe:
-          httpGet:
-            path: /readyz
-            port: 9090
-          initialDelaySeconds: 5
-          periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 3
-        resources:
-          requests:
-            memory: "64Mi"
-            cpu: "50m"
-          limits:
-            memory: "128Mi"
-            cpu: "100m"
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          privileged: false
-          readOnlyRootFilesystem: true
-          runAsNonRoot: true
-          runAsUser: 185
-          runAsGroup: 185
-          seccompProfile:
-            type: RuntimeDefault
-      
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 185
+      serviceAccount: spark-operator-controller
+      serviceAccountName: spark-operator-controller
+      terminationGracePeriodSeconds: 30
       volumes:
       - emptyDir:
           sizeLimit: 1Gi
         name: tmp
-      securityContext:
-        fsGroup: 185
-      serviceAccountName: spark-operator-controller 

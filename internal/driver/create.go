@@ -82,7 +82,7 @@ func Create(app *v1beta2.SparkApplication, serviceLabels map[string]string, driv
 		}
 	}
 	//Driver Pod Owner Reference
-	podObjectMetadata.OwnerReferences = []metav1.OwnerReference{*common.GetOwnerReference(app)}
+	podObjectMetadata.OwnerReferences = []metav1.OwnerReference{*common.GetOwnerReferenceFromCluster(app)}
 	log.Printf("Driver pod name: %s, namespace: %s", podObjectMetadata.Name, podObjectMetadata.Namespace)
 
 	//Driver pod DNS policy
