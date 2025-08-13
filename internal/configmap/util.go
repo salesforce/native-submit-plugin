@@ -69,16 +69,7 @@ func createConfigMapUtil(configMapName string, app *v1beta2.SparkApplication, co
 		}
 	}
 
-	ownerRef := common.GetConfigMapOwnerReference(app)
-
-	// Log ConfigMap creation details for debugging
-	if ownerRef != nil {
-		log.Printf("Creating ConfigMap %s in namespace %s with owner UID: %s, total data size: %d bytes",
-			configMapName, app.Namespace, ownerRef.UID, totalSize)
-	} else {
-		log.Printf("Creating ConfigMap %s in namespace %s without owner reference, total data size: %d bytes",
-			configMapName, app.Namespace, totalSize)
-	}
+	ownerRef := common.GetOwnerReferenceFromCluster(app)
 
 	configMap := &apiv1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
