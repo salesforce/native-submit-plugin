@@ -77,11 +77,34 @@ containers:
   - --grpc-submit-timeout=10s
   # ... other args
 
-- name: native-submit
-  image: your-registry/native-submit:latest
-  ports:
-  - containerPort: 50051  # gRPC
-  - containerPort: 9090   # Health checks
+  - image: docker.io/library/native-submit-plugin:0813202502
+    imagePullPolicy: IfNotPresent
+    livenessProbe:
+      failureThreshold: 3
+      httpGet:
+        path: /healthz
+        port: 9090
+        scheme: HTTP
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 1
+    name: native-submit
+    ports:
+    - containerPort: 50051
+      name: metrics
+      protocol: TCP
+    readinessProbe:
+      failureThreshold: 3
+      httpGet:
+        path: /readyz
+        port: 9090
+        scheme: HTTP
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 1
+    resources: {}
+    terminationMessagePath: /dev/termination-log
+    terminationMessagePolicy: Fil
 ```
 
 ### 3. Test the Integration
